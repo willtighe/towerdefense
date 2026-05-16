@@ -54,9 +54,83 @@ canvas {
     image-rendering: pixelated;
     border: 3px solid #1E3A5F;
 }
+#game-wrap { display: flex; flex-direction: column; }
+#canvas-wrap { position: relative; line-height: 0; }
+#card-overlay {
+    position: absolute; top: 3px; left: 3px;
+    width: 800px; height: 600px;
+    pointer-events: none; display: none;
+}
+#cards-container {
+    position: absolute; top: 153px; left: 20px;
+    display: flex; gap: 20px;
+}
+.level-card {
+    width: 240px; height: 410px;
+    background: #0D1B2A; border: 2px solid #1E3A5F;
+    display: flex; flex-direction: column;
+    overflow: hidden; box-sizing: border-box;
+    pointer-events: all; cursor: pointer;
+}
+.level-card.locked { cursor: default; }
+.level-card:not(.locked):hover { background: #112040; border-color: var(--accent); }
+.card-accent { height: 5px; flex-shrink: 0; }
+.card-mm-panel {
+    height: 96px; margin: 10px 10px 0; flex-shrink: 0;
+    background: #050D14;
+    display: flex; align-items: center; justify-content: center;
+}
+.card-minimap { display: block; image-rendering: pixelated; }
+.card-lock-wrap { text-align: center; }
+.card-lock-icon { font-size: 26px; display: block; margin-bottom: 6px; }
+.card-locked-txt { font: 10px 'Courier New'; color: #64748B; letter-spacing: 1px; }
+.card-title-area { margin-top: 14px; text-align: center; flex-shrink: 0; }
+.card-level-name { font: bold 17px 'Courier New'; color: #F1F5F9; }
+.card-level-name.dim { color: #64748B; }
+.card-level-label { font: 11px 'Courier New'; margin-top: 4px; }
+.card-divider { height: 1px; background: #1E293B; margin: 8px 14px 0; flex-shrink: 0; }
+.card-score-box {
+    display: flex; flex-direction: row;
+    margin: 8px 14px 0; height: 170px;
+    border: 1px solid #1E3A5F; flex-shrink: 0;
+}
+.card-col {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px; padding: 10px 4px;
+}
+.card-col-best { background: #0D1B2A; border-left: 1px solid #1E293B; }
+.card-col-best.has-score { border-left-color: #134E2A; }
+.col-label { font: bold 11px 'Courier New'; letter-spacing: 0.5px; }
+.col-val { display: flex; align-items: center; gap: 5px; }
+.col-num { font: bold 32px 'Courier New'; color: #FCD34D; }
+.col-num.dim { color: #64748B; }
+.col-sub { font: 10px 'Courier New'; color: #94A3B8; text-align: center; }
+.card-btn-area { padding: 11px 18px 0; flex-shrink: 0; }
+.card-play-btn {
+    width: 100%; height: 36px; background: #1D4ED8; color: #F1F5F9;
+    font: bold 12px 'Courier New'; border: none; cursor: pointer; letter-spacing: 0.5px;
+}
+.level-card:not(.locked):hover .card-play-btn { background: var(--accent); color: #0F172A; }
+.card-locked-btn {
+    height: 36px; color: #64748B; font: 12px 'Courier New';
+    display: flex; align-items: center; justify-content: center;
+}
+.page-btn {
+    position: absolute;
+    width: 18px; height: 44px; top: 336px;
+    background: #0F172A; border: 2px solid #1E3A5F;
+    color: #93C5FD; font: bold 14px 'Courier New';
+    cursor: pointer; pointer-events: all; padding: 0;
+    display: none;
+}
+#page-prev { left: 1px; }
+#page-next { right: 1px; }
+.page-btn:hover { background: #112040; border-color: #3B82F6; }
 </style>
 </head>
 <body>
+<div id="game-wrap">
 <div id="hud" style="display:none">
     GOLD: <span class="coin"></span><b id="gv" style="color:#FCD34D">-</b>
     <span style="color:#1E293B">·</span> LIVES: <b id="lv" style="color:#F87171">-</b>
@@ -72,13 +146,23 @@ canvas {
     </div>
     <span id="msg">Select a level to begin</span>
 </div>
+<div id="canvas-wrap">
 <canvas id="cv" width="800" height="600"></canvas>
+<div id="card-overlay">
+    <div id="cards-container"></div>
+    <button id="page-prev" class="page-btn">&lt;</button>
+    <button id="page-next" class="page-btn">&gt;</button>
+</div>
+</div>
+</div>
 <script>
 const canvas = document.getElementById('cv');
 const ctx = canvas.getContext('2d');
 
 const COLS = 20, ROWS = 15, SZ = 40;
-const TOWER_RANGE = 120, TOWER_RATE = 30;
+const TOWER_TYPES = {
+    basic: { cost:50, range:120, rate:30, damage:1, drawFn: drawBasicTower },
+};
 
 // ── Levels ───────────────────────────────────────────────────────────────────
 const LEVELS = [
@@ -105,7 +189,7 @@ const LEVELS = [
         startCell:{ r:1,  c:0  }, endCell:{ r:14, c:13 },
     },
     {
-        label: 'U-TURN', color: '#3B82F6', target: 544,
+        label: 'U-TURN', color: '#3B82F6', target: 594,
         waves: [
             'bbbbbbbbbb'.split(''),
             'bbbbbbtbbtbtbt'.split(''),
@@ -152,6 +236,63 @@ const LEVELS = [
         ],
         startCell:{ r:1, c:0 }, endCell:{ r:14, c:18 },
     },
+    {
+        label: 'W-SHAPE', color: '#F97316', target: 694,
+        waves: [
+            'bbbbbbbbbb'.split(''),
+            'bbbbbbtbbtbtbt'.split(''),
+            'bsbsbbtbstbsbtbtbbtb'.split(''),
+        ],
+        segments: [
+            { r1:1,  c1:0,  r2:1,  c2:9,  horiz:true  },
+            { r1:1,  c1:9,  r2:11, c2:9,  horiz:false },
+            { r1:11, c1:9,  r2:11, c2:4,  horiz:true  },
+            { r1:11, c1:4,  r2:4,  c2:4,  horiz:false },
+            { r1:4,  c1:4,  r2:4,  c2:14, horiz:true  },
+            { r1:4,  c1:14, r2:13, c2:14, horiz:false },
+            { r1:13, c1:14, r2:13, c2:19, horiz:true  },
+        ],
+        waypoints: [
+            { x:-20,      y:1*40+20  },
+            { x:9*40+20,  y:1*40+20  },
+            { x:9*40+20,  y:11*40+20 },
+            { x:4*40+20,  y:11*40+20 },
+            { x:4*40+20,  y:4*40+20  },
+            { x:14*40+20, y:4*40+20  },
+            { x:14*40+20, y:13*40+20 },
+            { x:800+30,   y:13*40+20 },
+        ],
+        startCell:{ r:1, c:0 }, endCell:{ r:13, c:19 },
+    },
+    // Level 5 — SERPENT
+    // Segments: [0] row 1 col 0→18 | [1] col 18 row 1→6 | [2] row 6 col 18→1
+    //           [3] col 1 row 6→12 | [4] row 12 col 1→19
+    // Junctions: (1,18)✓ (6,18)✓ (6,1)✓ (12,1)✓
+    // Waypoints: entry(-20,60) (740,60) (740,260) (60,260) (60,500) exit(830,500)✓
+    {
+        label: 'SERPENT', color: '#84CC16', target: 558,
+        waves: [
+            'bbbbbbbbbb'.split(''),
+            'bsbsbbtbbtbtbt'.split(''),
+            'bsbstbbtsbtbsbtstbbs'.split(''),
+        ],
+        segments: [
+            { r1:1,  c1:0,  r2:1,  c2:18, horiz:true  },
+            { r1:1,  c1:18, r2:6,  c2:18, horiz:false },
+            { r1:6,  c1:18, r2:6,  c2:1,  horiz:true  },
+            { r1:6,  c1:1,  r2:12, c2:1,  horiz:false },
+            { r1:12, c1:1,  r2:12, c2:19, horiz:true  },
+        ],
+        waypoints: [
+            { x:-20,      y:1*40+20  },
+            { x:18*40+20, y:1*40+20  },
+            { x:18*40+20, y:6*40+20  },
+            { x:1*40+20,  y:6*40+20  },
+            { x:1*40+20,  y:12*40+20 },
+            { x:800+30,   y:12*40+20 },
+        ],
+        startCell:{ r:1, c:0 }, endCell:{ r:12, c:19 },
+    },
 ];
 
 // ── High score storage ────────────────────────────────────────────────────────
@@ -159,13 +300,16 @@ function getHighScore(level) { return parseInt(localStorage.getItem('td_hs_'+lev
 function setHighScore(level, score) { localStorage.setItem('td_hs_'+level, score); }
 
 // ── Enemy types ───────────────────────────────────────────────────────────────
-const BASIC = { speed:1.1,  hp:5,  reward:12 };
-const TANK  = { speed:0.55, hp:28, reward:30 };
+const ENEMY_TYPES = {
+    'b': { speed:1.1,  hp:5,  reward:12, drawFn: drawBasic },
+    't': { speed:0.55, hp:28, reward:30, drawFn: drawTank  },
+    's': { speed:2.8,  hp:2,  reward:8,  drawFn: drawScout },
+};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let screen = 'splash';
-let unlockedLevels = JSON.parse(localStorage.getItem('td_unlocked') || '[true,false,false]');
-let hoverCard = -1;
+let unlockedLevels = JSON.parse(localStorage.getItem('td_unlocked') || '[true,false,false,false,false]');
+let selectPage = 0;
 
 let gold = 100, lives = 20, currentLevel = 0, wave = 0;
 let gameOver = false, won = false, waveActive = false, levelComplete = false, newBest = false;
@@ -181,7 +325,7 @@ const grid = Array.from({ length:ROWS }, () => Array(COLS).fill('empty'));
 let fadeAlpha = 1;       // starts opaque so opening splash fades in
 let fadePending = null;  // callback fired when fade reaches full black
 let splashBtnHover = false;
-const SPLASH_BTN = { x:270, y:342, w:260, h:44 };
+const SPLASH_BTN = { x:270, y:366, w:260, h:44 };
 
 // ── Level load ────────────────────────────────────────────────────────────────
 function loadLevel(idx) {
@@ -205,8 +349,8 @@ function updateHUD() {
     document.getElementById('hud').style.display = screen === 'playing' ? 'flex' : 'none';
     document.getElementById('gv').textContent  = screen === 'playing' ? gold  : '-';
     document.getElementById('lv').textContent  = screen === 'playing' ? lives : '-';
-    document.getElementById('lev').textContent = screen === 'playing' ? (currentLevel+1)+'/3' : '-';
-    document.getElementById('wv').textContent  = screen === 'playing' ? wave+'/3' : '-';
+    document.getElementById('lev').textContent = screen === 'playing' ? (currentLevel+1)+'/'+LEVELS.length : '-';
+    document.getElementById('wv').textContent  = screen === 'playing' ? wave+'/'+LEVELS[currentLevel].waves.length : '-';
     document.getElementById('tgv').textContent = screen === 'playing' ? LEVELS[currentLevel].target : '-';
     const hs = screen === 'playing' ? getHighScore(currentLevel) : 0;
     document.getElementById('bsv').textContent = screen === 'playing' ? (hs > 0 ? hs : '-') : '-';
@@ -222,7 +366,7 @@ function updateHUD() {
     } else if (waveActive) {
         msg.textContent = 'Wave ' + wave + ' in progress...'; msg.style.color = '#FCD34D';
     } else {
-        msg.textContent = `Place towers (50g) | SPACE: Wave ${wave+1}`; msg.style.color = '#93C5FD';
+        msg.textContent = `Place towers (${TOWER_TYPES.basic.cost}g) | SPACE: Wave ${wave+1}`; msg.style.color = '#93C5FD';
     }
 }
 
@@ -237,25 +381,26 @@ function selectLevel(i) {
 
 function returnToSelect() {
     screen = 'select'; waveActive = false; levelComplete = false;
-    gameOver = false; won = false;
+    gameOver = false; won = false; selectPage = 0;
     enemies = []; bullets = []; sparks = [];
     canvas.style.cursor = 'default';
+    refreshCardOverlay();
     updateHUD();
 }
 
 function startWave() {
-    if (waveActive || wave >= 3 || gameOver || levelComplete) return;
+    if (waveActive || wave >= LEVELS[currentLevel].waves.length || gameOver || levelComplete) return;
     wave++; waveActive = true;
     spawnQueue = LEVELS[currentLevel].waves[wave-1]; queueIdx = 0; spawnTimer = 0;
     updateHUD();
 }
 
 function spawnEnemy() {
-    const isTank = spawnQueue[queueIdx++] === 't';
-    const s = isTank ? TANK : BASIC;
+    const char = spawnQueue[queueIdx++];
+    const s = ENEMY_TYPES[char];
     enemies.push({
-        x:waypoints[0].x, y:waypoints[0].y, type:isTank?'tank':'basic',
-        speed:s.speed, hp:s.hp, maxHp:s.hp, reward:s.reward, tick:0, wpIdx:1,
+        x:waypoints[0].x, y:waypoints[0].y, type:char,
+        speed:s.speed, hp:s.hp, maxHp:s.hp, reward:s.reward, drawFn:s.drawFn, tick:0, wpIdx:1,
     });
 }
 
@@ -287,7 +432,7 @@ function update() {
         let target = null, best = -Infinity;
         for (const e of enemies) {
             const dx = e.x-t.cx, dy = e.y-t.cy;
-            if (dx*dx+dy*dy <= TOWER_RANGE*TOWER_RANGE) {
+            if (dx*dx+dy*dy <= t.range*t.range) {
                 const wp = waypoints[e.wpIdx];
                 const p = e.wpIdx*10000 - Math.hypot(wp.x-e.x, wp.y-e.y);
                 if (p > best) { target = e; best = p; }
@@ -295,7 +440,7 @@ function update() {
         }
         t.target = target;
         if (target && t.cooldown <= 0) {
-            t.cooldown = TOWER_RATE;
+            t.cooldown = t.rate;
             const dx=target.x-t.cx, dy=target.y-t.cy, len=Math.hypot(dx,dy);
             bullets.push({ x:t.cx, y:t.cy, vx:dx/len*7, vy:dy/len*7, target });
         }
@@ -325,12 +470,12 @@ function update() {
 
     if (waveActive && queueIdx >= spawnQueue.length && enemies.length === 0) {
         waveActive = false;
-        if (wave >= 3) {
-            if (currentLevel+1 < 3) { unlockedLevels[currentLevel+1] = true; localStorage.setItem('td_unlocked', JSON.stringify(unlockedLevels)); }
+        if (wave >= LEVELS[currentLevel].waves.length) {
+            if (currentLevel+1 < LEVELS.length) { unlockedLevels[currentLevel+1] = true; localStorage.setItem('td_unlocked', JSON.stringify(unlockedLevels)); }
             const prev = getHighScore(currentLevel);
             newBest = gold > prev;
             if (newBest) setHighScore(currentLevel, gold);
-            if (currentLevel >= 2) { gameOver = true; won = true; }
+            if (currentLevel >= LEVELS.length - 1) { gameOver = true; won = true; }
             else levelComplete = true;
         }
         updateHUD();
@@ -356,6 +501,17 @@ function segArrow(seg) {
     return seg.r2 > seg.r1 ? 'v' : '^';
 }
 
+function drawScout(ex, ey, tick) {
+    const bob = Math.floor(tick/5)%2;
+    dr(ex-5,ey+6+bob,10,2,'rgba(0,0,0,0.25)');
+    dr(ex-5,ey-6+bob,10,10,'#FCD34D'); dr(ex-4,ey-5+bob,8,8,'#F59E0B');
+    dr(ex-5,ey-6+bob,3,3,'#FEF08A'); dr(ex-4,ey-3+bob,2,2,'#0F172A');
+    dr(ex+2,ey-3+bob,2,2,'#0F172A');
+    dr(ex-3,ey+1+bob,2,1,'#92400E'); dr(ex+1,ey+1+bob,2,1,'#92400E');
+    dr(ex-6,ey-2+bob,2,5,'#F59E0B'); dr(ex+4,ey-2+bob,2,5,'#F59E0B');
+    dr(ex-2,ey+4+bob,4,3,'#FCD34D');
+}
+
 function drawBasic(ex, ey, tick) {
     const leg = Math.floor(tick/8)%2;
     dr(ex-7,ey+8,14,3,'rgba(0,0,0,0.28)');
@@ -376,6 +532,40 @@ function drawTank(ex, ey, tick) {
     dr(ex-8,y-15,16,10,'#DC2626'); dr(ex-7,y-14,6,2,'#EF4444'); dr(ex-8,y-7,16,2,'#991B1B');
     dr(ex-7,y-4,5,2,'#0F172A'); dr(ex+2,y-4,5,2,'#0F172A');
     dr(ex+8,y-12,12,4,'#7F1D1D'); dr(ex+9,y-11,10,2,'#991B1B'); dr(ex+18,y-12,3,4,'#0F172A');
+}
+
+function drawBasicTower(t) {
+    const x=t.col*SZ, y=t.row*SZ;
+    dr(x+5,y+5,SZ-10,SZ-10,'#0F172A');dr(x+4,y+4,SZ-8,SZ-8,'#1E3A5F');
+    dr(x+8,y+8,SZ-16,SZ-16,'#1D4ED8');dr(x+9,y+9,SZ-18,SZ-18,'#2563EB');
+    dr(x+10,y+10,7,3,'#60A5FA');dr(x+10,y+10,3,7,'#60A5FA');
+    ctx.save();ctx.translate(t.cx,t.cy);
+    ctx.rotate(t.target?Math.atan2(t.target.y-t.cy,t.target.x-t.cx):0);
+    dr(0,-4,22,8,'#0F172A');dr(2,-3,18,6,'#1E3A5F');ctx.restore();
+}
+
+function drawScoreBoxes(centerX, topY, levelIndex) {
+    const lx=centerX-90, rx=centerX+90, bxW=140, bxH=60, bxY=topY;
+    dr(lx-bxW/2,bxY,bxW,bxH,'#0D1B2A');
+    ctx.strokeStyle='#1E3A5F';ctx.lineWidth=1;ctx.strokeRect(lx-bxW/2,bxY,bxW,bxH);
+    ctx.font='bold 11px Courier New';ctx.fillStyle='#FBBF24';ctx.fillText('TARGET',lx,bxY+16);
+    ctx.font='bold 22px Courier New';ctx.fillStyle='#FCD34D';
+    const tgStr=LEVELS[levelIndex].target.toString();
+    ctx.fillText(tgStr,lx,bxY+38);
+    const tgw=ctx.measureText(tgStr).width;
+    drawCoin(lx+tgw/2+7,bxY+29,4);
+    ctx.font='9px Courier New';ctx.fillStyle='#94A3B8';ctx.fillText('gold max',lx,bxY+52);
+    const fb=getHighScore(levelIndex);
+    dr(rx-bxW/2,bxY,bxW,bxH,'#0D1B2A');
+    ctx.strokeStyle=fb>0?'#134E2A':'#1E293B';ctx.lineWidth=1;ctx.strokeRect(rx-bxW/2,bxY,bxW,bxH);
+    ctx.font='bold 11px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('YOUR BEST',rx,bxY+16);
+    ctx.font='bold 22px Courier New';ctx.fillStyle='#FCD34D';
+    const fbStr=fb>0?fb.toString():'---';
+    ctx.fillText(fbStr,rx,bxY+38);
+    if(fb>0){const fbw=ctx.measureText(fbStr).width;drawCoin(rx+fbw/2+7,bxY+29,4);}
+    ctx.font='9px Courier New';ctx.fillStyle='#94A3B8';
+    ctx.fillText(fb>0?'personal best':'no run yet',rx,bxY+52);
+    return bxY + bxH;
 }
 
 // ── Fade ─────────────────────────────────────────────────────────────────────
@@ -405,7 +595,6 @@ function drawSplashScreen() {
 
     ctx.fillStyle = '#0F172A'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Pixel frame border (same as select)
     ctx.fillStyle = '#0D1B2A';
     ctx.fillRect(0,0,canvas.width,6); ctx.fillRect(0,canvas.height-6,canvas.width,6);
     ctx.fillRect(0,0,6,canvas.height); ctx.fillRect(canvas.width-6,0,6,canvas.height);
@@ -416,20 +605,17 @@ function drawSplashScreen() {
 
     ctx.textAlign = 'center';
 
-    // Title
     ctx.font = 'bold 50px Courier New'; ctx.fillStyle = '#FCD34D';
-    ctx.fillText('TOWER DEFENSE', W, 202);
+    ctx.fillText('TOWER DEFENSE', W, 226);
     const uw = ctx.measureText('TOWER DEFENSE').width;
-    dr(W-uw/2,     210, uw,    3, '#92400E');
-    dr(W-uw/2+6,   214, uw-12, 2, '#78350F');
+    dr(W-uw/2,     234, uw,    3, '#92400E');
+    dr(W-uw/2+6,   238, uw-12, 2, '#78350F');
 
-    // Tagline
     ctx.font = '18px Courier New'; ctx.fillStyle = '#F1F5F9';
-    ctx.fillText("Survival isn't everything.", W, 252);
-    ctx.fillText('Finish each level with as much gold as possible.', W, 280);
-    ctx.fillText('Can you beat the target score for each level?', W, 308);
+    ctx.fillText("Survival isn't everything.", W, 276);
+    ctx.fillText('Finish each level with as much gold as possible.', W, 304);
+    ctx.fillText('Can you beat the target score for each level?', W, 332);
 
-    // CTA button
     const { x:bx, y:by, w:bw, h:bh } = SPLASH_BTN;
     const hov = splashBtnHover;
     dr(bx, by, bw, bh, hov ? '#60A5FA' : '#1D4ED8');
@@ -443,189 +629,154 @@ function drawSplashScreen() {
     ctx.textAlign = 'left';
 }
 
-// ── Level select screen ───────────────────────────────────────────────────────
-function cardBounds(i) {
-    const cw=240, ch=410, gap=20;
-    return { x:(canvas.width-(3*cw+2*gap))/2 + i*(cw+gap), y:153, w:cw, h:ch };
-}
-
-function drawMinimap(ax, ay, aw, ah, idx) {
+// ── HTML card overlay ─────────────────────────────────────────────────────────
+function renderCardMinimap(canvasEl, idx) {
+    const mc = canvasEl.getContext('2d');
     const sc = 0.15;
-    const mw = COLS*SZ*sc, mh = ROWS*SZ*sc;  // 120 × 90
-    const ox = ax + Math.floor((aw-mw)/2);
-    const oy = ay + Math.floor((ah-mh)/2);
-
-    dr(ox, oy, mw, mh, '#0D1B2A');
-
+    const mw = COLS*SZ*sc, mh = ROWS*SZ*sc;
+    mc.fillStyle = '#0D1B2A'; mc.fillRect(0, 0, mw, mh);
     for (const seg of LEVELS[idx].segments) {
-        const sx = ox + Math.min(seg.c1,seg.c2)*SZ*sc;
-        const sy = oy + Math.min(seg.r1,seg.r2)*SZ*sc;
-        dr(sx, sy, (Math.abs(seg.c2-seg.c1)+1)*SZ*sc+0.5, (Math.abs(seg.r2-seg.r1)+1)*SZ*sc+0.5, '#7C5C3A');
+        mc.fillStyle = '#7C5C3A';
+        mc.fillRect(Math.min(seg.c1,seg.c2)*SZ*sc, Math.min(seg.r1,seg.r2)*SZ*sc,
+            (Math.abs(seg.c2-seg.c1)+1)*SZ*sc+0.5, (Math.abs(seg.r2-seg.r1)+1)*SZ*sc+0.5);
     }
-    const { startCell:sc2, endCell:ec } = LEVELS[idx];
-    dr(ox+sc2.c*SZ*sc, oy+sc2.r*SZ*sc, SZ*sc+1, SZ*sc+1, '#FCD34D');
-    dr(ox+ec.c*SZ*sc,  oy+ec.r*SZ*sc,  SZ*sc+1, SZ*sc+1, '#F87171');
-
-    ctx.strokeStyle = '#1E3A5F'; ctx.lineWidth = 1;
-    ctx.strokeRect(ox, oy, mw, mh);
+    const { startCell, endCell } = LEVELS[idx];
+    mc.fillStyle = '#FCD34D'; mc.fillRect(startCell.c*SZ*sc, startCell.r*SZ*sc, SZ*sc+1, SZ*sc+1);
+    mc.fillStyle = '#F87171'; mc.fillRect(endCell.c*SZ*sc, endCell.r*SZ*sc, SZ*sc+1, SZ*sc+1);
+    mc.strokeStyle = '#1E3A5F'; mc.lineWidth = 1; mc.strokeRect(0, 0, mw, mh);
 }
 
-function drawLockIcon(cx, cy) {
-    // Shackle
-    dr(cx-7,cy-22,5,15,'#334155'); dr(cx+2,cy-22,5,15,'#334155'); dr(cx-7,cy-22,14,5,'#334155');
-    // Body
-    dr(cx-13,cy-9,26,22,'#1E293B'); dr(cx-12,cy-8,24,3,'#334155');
-    // Keyhole
-    dr(cx-4,cy-3,8,8,'#0F172A'); dr(cx-2,cy+2,4,8,'#0F172A');
-}
-
-function drawLevelCard(i) {
-    const { x:cx, y:cy, w:cw, h:ch } = cardBounds(i);
-    const locked  = !unlockedLevels[i];
-    const hovered = hoverCard === i && !locked;
-    const lvl     = LEVELS[i];
-
-    // Card body
-    dr(cx, cy, cw, ch, locked ? '#080F1A' : hovered ? '#112040' : '#0D1B2A');
-
-    // Border
-    ctx.strokeStyle = locked ? '#1E293B' : hovered ? lvl.color : '#1E3A5F';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(cx+1, cy+1, cw-2, ch-2);
-
-    // Top accent bar
-    dr(cx+2, cy+2, cw-4, 5, locked ? '#1E293B' : lvl.color);
-
-    // ── Minimap / lock panel ──
-    const mmX=cx+10, mmY=cy+15, mmW=cw-20, mmH=96;
-    dr(mmX, mmY, mmW, mmH, '#050D14');
-    if (locked) {
-        drawLockIcon(cx+cw/2, mmY+mmH/2+2);
-        ctx.textAlign='center'; ctx.font='10px Courier New'; ctx.fillStyle='#334155';
-        ctx.fillText('LOCKED', cx+cw/2, mmY+mmH-7);
-    } else {
-        drawMinimap(mmX, mmY, mmW, mmH, i);
-    }
-
-    // ── Level title ──
-    const ty = cy + 125;
-    ctx.textAlign='center';
-    ctx.font='bold 17px Courier New';
-    ctx.fillStyle = locked ? '#334155' : '#F1F5F9';
-    ctx.fillText('LEVEL ' + (i+1), cx+cw/2, ty);
-
-    ctx.font='11px Courier New';
-    ctx.fillStyle = locked ? '#1E293B' : lvl.color;
-    ctx.fillText(locked ? '?????' : lvl.label, cx+cw/2, ty+16);
-
-    // Divider
-    ctx.strokeStyle = locked ? '#1E293B' : '#1E3A5F'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(cx+14,ty+27); ctx.lineTo(cx+cw-14,ty+27); ctx.stroke();
-
-    // ── Score section ──
-    const sy2 = ty + 40;
-    const boxH = 170;
-    dr(cx+14, sy2-4, cw-28, boxH, locked ? '#050D14' : '#0D1B2A');
-    ctx.strokeStyle = locked ? '#1E293B' : '#1E3A5F'; ctx.lineWidth=1;
-    ctx.strokeRect(cx+14, sy2-4, cw-28, boxH);
-    if (!locked) dr(cx+cw/2-1, sy2+10, 1, boxH-20, '#1E3A5F');
-
+function createLevelCard(i) {
+    const lvl = LEVELS[i];
+    const locked = !unlockedLevels[i];
     const hs = getHighScore(i);
-    const lc = cx + cw/4, rc = cx + 3*cw/4;
 
-    // TARGET column
-    ctx.font='bold 11px Courier New';
-    ctx.fillStyle = locked ? '#1E293B' : '#FBBF24';
-    ctx.fillText('TARGET', lc, sy2+22);
-    ctx.font='bold 32px Courier New';
-    ctx.fillStyle = locked ? '#1E293B' : '#FCD34D';
-    const tStr = locked ? '---' : LEVELS[i].target.toString();
-    ctx.fillText(tStr, lc, sy2+95);
-    if (!locked) {
-        const tw = ctx.measureText(tStr).width;
-        drawCoin(lc + tw/2 + 9, sy2+84, 5);
-    }
-    ctx.font='10px Courier New';
-    ctx.fillStyle = locked ? '#1E293B' : '#78350F';
-    ctx.fillText('gold max', lc, sy2+130);
+    const card = document.createElement('div');
+    card.className = 'level-card' + (locked ? ' locked' : '');
+    card.dataset.level = i;
+    card.style.setProperty('--accent', lvl.color);
 
-    // YOUR BEST column
-    if (!locked) {
-        dr(rc-42, sy2+6, 84, 154, '#0D2218');
-        ctx.strokeStyle = hs > 0 ? '#134E2A' : '#1E293B'; ctx.lineWidth=1;
-        ctx.strokeRect(rc-42, sy2+6, 84, 154);
-    }
-    ctx.font='bold 11px Courier New';
-    ctx.fillStyle = locked ? '#1E293B' : '#6EE7B7';
-    ctx.fillText('YOUR BEST', rc, sy2+22);
-    ctx.font='bold 32px Courier New';
-    ctx.fillStyle = locked ? '#1E293B' : (hs > 0 ? '#FCD34D' : '#1E3A5F');
-    const bStr = locked ? '---' : (hs > 0 ? hs.toString() : '---');
-    ctx.fillText(bStr, rc, sy2+95);
-    if (!locked && hs > 0) {
-        const bw = ctx.measureText(bStr).width;
-        drawCoin(rc + bw/2 + 9, sy2+84, 5);
-    }
-    ctx.font='10px Courier New';
-    ctx.fillStyle = locked ? '#1E293B' : (hs > 0 ? '#134E2A' : '#1E293B');
-    ctx.fillText(hs > 0 ? 'personal best' : 'no run yet', rc, sy2+130);
+    const accent = document.createElement('div');
+    accent.className = 'card-accent';
+    accent.style.background = locked ? '#1E293B' : lvl.color;
+    card.appendChild(accent);
 
-    // Divider
-    ctx.strokeStyle = locked ? '#1E293B' : '#1E3A5F';
-    ctx.beginPath(); ctx.moveTo(cx+14,sy2+boxH); ctx.lineTo(cx+cw-14,sy2+boxH); ctx.stroke();
-
-    // ── Play button ──
-    const by2 = sy2 + boxH + 12;
+    const mmPanel = document.createElement('div');
+    mmPanel.className = 'card-mm-panel';
     if (locked) {
-        ctx.font='12px Courier New'; ctx.fillStyle='#334155';
-        ctx.fillText('[ LOCKED ]', cx+cw/2, by2+14);
+        mmPanel.innerHTML = '<div class="card-lock-wrap"><span class="card-lock-icon">🔒</span><div class="card-locked-txt">LOCKED</div></div>';
     } else {
-        const bx=cx+18, bw=cw-36, bh=36;
-        dr(bx, by2, bw, bh, hovered ? lvl.color : '#1D4ED8');
-        dr(bx+1, by2+1, bw-2, 3, hovered ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.12)');
-        ctx.font='bold 12px Courier New';
-        ctx.fillStyle = '#F1F5F9';
-        ctx.fillText('CLICK TO PLAY', cx+cw/2, by2+22);
+        const mc = document.createElement('canvas');
+        mc.className = 'card-minimap'; mc.width = 120; mc.height = 90; mc.dataset.level = i;
+        mmPanel.appendChild(mc);
     }
+    card.appendChild(mmPanel);
 
-    ctx.textAlign='left';
+    const titleArea = document.createElement('div');
+    titleArea.className = 'card-title-area';
+    titleArea.innerHTML =
+        `<div class="card-level-name${locked?' dim':''}">LEVEL ${i+1}</div>` +
+        `<div class="card-level-label" style="color:${locked?'#1E293B':lvl.color}">${locked?'?????':lvl.label}</div>`;
+    card.appendChild(titleArea);
+
+    const div1 = document.createElement('div'); div1.className = 'card-divider'; card.appendChild(div1);
+
+    const scoreBox = document.createElement('div');
+    scoreBox.className = 'card-score-box';
+
+    const targetCol = document.createElement('div');
+    targetCol.className = 'card-col card-col-target';
+    targetCol.innerHTML =
+        `<div class="col-label" style="color:${locked?'#1E293B':'#FBBF24'}">TARGET</div>` +
+        `<div class="col-val">${locked?'':'<span class="coin"></span>'}` +
+        `<span class="col-num${locked?' dim':''}">${locked?'---':lvl.target}</span></div>` +
+        `<div class="col-sub" style="color:${locked?'#1E293B':'#94A3B8'}">${locked?'':'gold max'}</div>`;
+    scoreBox.appendChild(targetCol);
+
+    const bestCol = document.createElement('div');
+    bestCol.className = 'card-col card-col-best' + (!locked && hs > 0 ? ' has-score' : '');
+    bestCol.innerHTML =
+        `<div class="col-label" style="color:${locked?'#1E293B':'#6EE7B7'}">YOUR BEST</div>` +
+        `<div class="col-val">${!locked && hs > 0 ? '<span class="coin"></span>' : ''}` +
+        `<span class="col-num${locked||hs===0?' dim':''}">${locked?'---':(hs>0?hs:'---')}</span></div>` +
+        `<div class="col-sub" style="color:${locked?'#1E293B':'#94A3B8'}">${locked?'':(hs>0?'personal best':'no run yet')}</div>`;
+    scoreBox.appendChild(bestCol);
+    card.appendChild(scoreBox);
+
+    const div2 = document.createElement('div'); div2.className = 'card-divider'; card.appendChild(div2);
+
+    const btnArea = document.createElement('div');
+    btnArea.className = 'card-btn-area';
+    if (locked) {
+        btnArea.innerHTML = '<div class="card-locked-btn">[ LOCKED ]</div>';
+    } else {
+        const btn = document.createElement('button');
+        btn.className = 'card-play-btn'; btn.textContent = 'CLICK TO PLAY';
+        btnArea.appendChild(btn);
+        card.addEventListener('click', () => {
+            if (fadePending !== null) return;
+            fadeToScreen(() => selectLevel(i));
+        });
+    }
+    card.appendChild(btnArea);
+
+    return card;
 }
 
+function refreshCardOverlay() {
+    const container = document.getElementById('cards-container');
+    if (!container) return;
+    container.innerHTML = '';
+    const start = selectPage * 3;
+    const end = Math.min(start + 3, LEVELS.length);
+    for (let i = start; i < end; i++) container.appendChild(createLevelCard(i));
+    document.querySelectorAll('.card-minimap').forEach(c =>
+        renderCardMinimap(c, parseInt(c.dataset.level)));
+    const lastPage = Math.ceil(LEVELS.length / 3) - 1;
+    const prevBtn = document.getElementById('page-prev');
+    const nextBtn = document.getElementById('page-next');
+    if (prevBtn) prevBtn.style.display = selectPage === 0 ? 'none' : 'block';
+    if (nextBtn) nextBtn.style.display = selectPage >= lastPage ? 'none' : 'block';
+}
+
+function updateCardOverlay() {
+    const overlay = document.getElementById('card-overlay');
+    if (!overlay) return;
+    if (screen === 'select') {
+        overlay.style.display = 'block';
+        overlay.style.opacity = Math.max(0, 1 - fadeAlpha);
+    } else {
+        overlay.style.display = 'none';
+    }
+}
+
+// ── Level select screen ───────────────────────────────────────────────────────
 function drawSelectScreen() {
-    // Background
     ctx.fillStyle='#0F172A'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // Pixel frame border
     ctx.fillStyle='#0D1B2A';
     ctx.fillRect(0,0,canvas.width,6); ctx.fillRect(0,canvas.height-6,canvas.width,6);
     ctx.fillRect(0,0,6,canvas.height); ctx.fillRect(canvas.width-6,0,6,canvas.height);
-    // Checkerboard pattern on top/bottom bars
     for (let x=0;x<canvas.width;x+=12) {
         dr(x,0,6,3,'#1E293B'); dr(x+6,3,6,3,'#1E293B');
         dr(x,canvas.height-3,6,3,'#1E293B'); dr(x+6,canvas.height-6,6,3,'#1E293B');
     }
 
-    // Title
     ctx.textAlign='center';
     ctx.font='bold 42px Courier New';
     ctx.fillStyle='#FCD34D';
     ctx.fillText('TOWER DEFENSE', canvas.width/2, 70);
 
-    // Pixel underline
     const uw = ctx.measureText('TOWER DEFENSE').width;
     dr(canvas.width/2-uw/2,   76, uw,   3, '#92400E');
     dr(canvas.width/2-uw/2+6, 80, uw-12,2, '#78350F');
 
-    // Tagline
     ctx.font='18px Courier New'; ctx.fillStyle='#F1F5F9';
-    ctx.fillText('Finish each level with as much gold as possible.', canvas.width/2, 104);
-    ctx.fillText('Can you beat the target score?', canvas.width/2, 128);
+    ctx.fillText("Survival isn't everything.", canvas.width/2, 97);
+    ctx.fillText('Finish each level with as much gold as possible.', canvas.width/2, 119);
+    ctx.fillText('Can you beat the target score?', canvas.width/2, 141);
 
-    // Cards
-    for (let i=0;i<3;i++) drawLevelCard(i);
-
-    // Footer
-    ctx.font='11px Courier New'; ctx.fillStyle='#64748B';
+    ctx.font='11px Courier New'; ctx.fillStyle='#94A3B8';
     ctx.fillText('PLACE TOWERS ON GRASS  |  SPACE LAUNCHES WAVES  |  SURVIVE 3 WAVES TO CLEAR A LEVEL', canvas.width/2, canvas.height-16);
     ctx.textAlign='left';
 }
@@ -663,27 +814,20 @@ function drawGame() {
 
     if (hoverRow>=0&&hoverCol>=0&&!gameOver&&!levelComplete&&grid[hoverRow][hoverCol]==='empty') {
         const hx=hoverCol*SZ+SZ/2,hy=hoverRow*SZ+SZ/2;
-        ctx.beginPath();ctx.arc(hx,hy,TOWER_RANGE,0,Math.PI*2);
+        const {range:hRange,cost:hCost}=TOWER_TYPES.basic;
+        ctx.beginPath();ctx.arc(hx,hy,hRange,0,Math.PI*2);
         ctx.fillStyle='rgba(96,165,250,0.10)';ctx.fill();
-        ctx.strokeStyle=gold>=50?'rgba(110,231,183,0.6)':'rgba(248,113,113,0.5)';
+        ctx.strokeStyle=gold>=hCost?'rgba(110,231,183,0.6)':'rgba(248,113,113,0.5)';
         ctx.lineWidth=1;ctx.stroke();
-        dr(hoverCol*SZ,hoverRow*SZ,SZ,SZ,gold>=50?'rgba(110,231,183,0.20)':'rgba(248,113,113,0.25)');
+        dr(hoverCol*SZ,hoverRow*SZ,SZ,SZ,gold>=hCost?'rgba(110,231,183,0.20)':'rgba(248,113,113,0.25)');
     }
 
-    for (const t of towers) {
-        const x=t.col*SZ,y=t.row*SZ;
-        dr(x+5,y+5,SZ-10,SZ-10,'#0F172A');dr(x+4,y+4,SZ-8,SZ-8,'#1E3A5F');
-        dr(x+8,y+8,SZ-16,SZ-16,'#1D4ED8');dr(x+9,y+9,SZ-18,SZ-18,'#2563EB');
-        dr(x+10,y+10,7,3,'#60A5FA');dr(x+10,y+10,3,7,'#60A5FA');
-        ctx.save();ctx.translate(t.cx,t.cy);
-        ctx.rotate(t.target?Math.atan2(t.target.y-t.cy,t.target.x-t.cx):0);
-        dr(0,-4,22,8,'#0F172A');dr(2,-3,18,6,'#1E3A5F');ctx.restore();
-    }
+    for (const t of towers) { t.drawFn(t); }
 
     for (const e of enemies) {
         const ex=Math.floor(e.x),ey=Math.floor(e.y);
-        if (e.type==='tank') drawTank(ex,ey,e.tick); else drawBasic(ex,ey,e.tick);
-        const bw=e.type==='tank'?30:20, by=e.type==='tank'?ey-19:ey-14;
+        e.drawFn(ex,ey,e.tick);
+        const bw=e.type==='t'?30:20, by=e.type==='t'?ey-19:ey-14;
         dr(ex-bw/2,by,bw,3,'#1E293B');
         dr(ex-bw/2,by,Math.ceil(bw*(e.hp/e.maxHp)),3,e.hp/e.maxHp>0.5?'#6EE7B7':'#F87171');
     }
@@ -698,14 +842,13 @@ function drawGame() {
     dr(ec.c*SZ,ec.r*SZ,SZ,SZ,'rgba(0,0,0,0.45)');ctx.fillStyle='#F87171';ctx.fillText('END',ec.c*SZ+SZ/2,ec.r*SZ+SZ/2+4);
     ctx.textAlign='left';
 
-    if (!waveActive&&!gameOver&&!levelComplete&&wave<3) {
+    if (!waveActive&&!gameOver&&!levelComplete&&wave<LEVELS[currentLevel].waves.length) {
         dr(canvas.width/2-165,canvas.height-48,330,36,'rgba(0,0,0,0.75)');
         ctx.strokeStyle='#FCD34D';ctx.lineWidth=1;ctx.strokeRect(canvas.width/2-165,canvas.height-48,330,36);
         ctx.fillStyle='#FCD34D';ctx.font='bold 14px Courier New';ctx.textAlign='center';
         ctx.fillText('[ SPACE ] - Launch Wave '+(wave+1),canvas.width/2,canvas.height-24);ctx.textAlign='left';
     }
 
-    // Level complete overlay
     if (levelComplete) {
         ctx.fillStyle='rgba(0,0,0,0.88)';ctx.fillRect(0,0,canvas.width,canvas.height);
         const W=canvas.width/2, H=canvas.height/2;
@@ -714,7 +857,7 @@ function drawGame() {
         ctx.font='bold 46px Courier New';ctx.fillStyle='#FCD34D';
         ctx.fillText('LEVEL '+(currentLevel+1)+' COMPLETE!',W,H-104);
 
-        ctx.font='11px Courier New';ctx.fillStyle='#64748B';
+        ctx.font='11px Courier New';ctx.fillStyle='#94A3B8';
         ctx.fillText('YOUR SCORE',W,H-64);
 
         ctx.font='bold 52px Courier New';ctx.fillStyle='#FCD34D';
@@ -724,37 +867,16 @@ function drawGame() {
         drawCoin(W+gsw/2+10, H-42, 6);
 
         ctx.strokeStyle='#1E3A5F';ctx.lineWidth=1;
-        ctx.beginPath();ctx.moveTo(W-130,H-4);ctx.lineTo(W+130,H-4);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(W-165,H-4);ctx.lineTo(W+165,H-4);ctx.stroke();
 
-        const lx=W-80,rx=W+80;
-        // TARGET
-        ctx.font='10px Courier New';ctx.fillStyle='#FBBF24';ctx.fillText('TARGET',lx,H+16);
-        ctx.font='bold 22px Courier New';ctx.fillStyle='#FCD34D';
-        const tgStr=LEVELS[currentLevel].target.toString();
-        ctx.fillText(tgStr,lx,H+38);
-        const tgw=ctx.measureText(tgStr).width;
-        drawCoin(lx+tgw/2+7, H+29, 4);
-        // YOUR BEST box
-        const fb=getHighScore(currentLevel);
-        dr(rx-44,H+4,88,42,'#0D2218');
-        ctx.strokeStyle=fb>0?'#134E2A':'#1E293B';ctx.lineWidth=1;
-        ctx.strokeRect(rx-44,H+4,88,42);
-        ctx.font='10px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('YOUR BEST',rx,H+16);
-        ctx.font='bold 22px Courier New';ctx.fillStyle=fb>0?'#FCD34D':'#1E3A5F';
-        const fbStr=fb>0?fb.toString():'---';
-        ctx.fillText(fbStr,rx,H+38);
-        if (fb>0){const bw=ctx.measureText(fbStr).width;drawCoin(rx+bw/2+7,H+29,4);}
-        ctx.textAlign='center';
-
-        let ny=H+62;
+        let ny=drawScoreBoxes(W,H+4,currentLevel)+14;
         if (newBest){ctx.font='bold 16px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('★  NEW BEST!  ★',W,ny);ny+=24;}
-        if (currentLevel+1<3){ctx.font='13px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('Level '+(currentLevel+2)+' is now unlocked',W,ny);ny+=22;}
-        ctx.font='16px Courier New';ctx.fillStyle='#64748B';
+        if (currentLevel+1<LEVELS.length){ctx.font='13px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('Level '+(currentLevel+2)+' is now unlocked',W,ny);ny+=22;}
+        ctx.font='16px Courier New';ctx.fillStyle='#94A3B8';
         ctx.fillText('[ SPACE ] - Return to Level Select',W,ny+8);
         ctx.textAlign='left';
     }
 
-    // Game over / win overlay
     if (gameOver) {
         ctx.fillStyle='rgba(0,0,0,0.88)';ctx.fillRect(0,0,canvas.width,canvas.height);
         const W=canvas.width/2, H=canvas.height/2;
@@ -763,7 +885,7 @@ function drawGame() {
             ctx.font='bold 54px Courier New';ctx.fillStyle='#6EE7B7';
             ctx.fillText('YOU WIN!',W,H-104);
 
-            ctx.font='11px Courier New';ctx.fillStyle='#64748B';
+            ctx.font='11px Courier New';ctx.fillStyle='#94A3B8';
             ctx.fillText('YOUR SCORE',W,H-64);
 
             ctx.font='bold 52px Courier New';ctx.fillStyle='#FCD34D';
@@ -773,36 +895,16 @@ function drawGame() {
             drawCoin(W+gsw2/2+10, H-42, 6);
 
             ctx.strokeStyle='#1E3A5F';ctx.lineWidth=1;
-            ctx.beginPath();ctx.moveTo(W-130,H-4);ctx.lineTo(W+130,H-4);ctx.stroke();
+            ctx.beginPath();ctx.moveTo(W-165,H-4);ctx.lineTo(W+165,H-4);ctx.stroke();
 
-            const lx2=W-80,rx2=W+80;
-            // TARGET
-            ctx.font='10px Courier New';ctx.fillStyle='#FBBF24';ctx.fillText('TARGET',lx2,H+16);
-            ctx.font='bold 22px Courier New';ctx.fillStyle='#FCD34D';
-            const tgStr2=LEVELS[currentLevel].target.toString();
-            ctx.fillText(tgStr2,lx2,H+38);
-            const tgw2=ctx.measureText(tgStr2).width;
-            drawCoin(lx2+tgw2/2+7, H+29, 4);
-            // YOUR BEST box
-            const fb2=getHighScore(currentLevel);
-            dr(rx2-44,H+4,88,42,'#0D2218');
-            ctx.strokeStyle=fb2>0?'#134E2A':'#1E293B';ctx.lineWidth=1;
-            ctx.strokeRect(rx2-44,H+4,88,42);
-            ctx.font='10px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('YOUR BEST',rx2,H+16);
-            ctx.font='bold 22px Courier New';ctx.fillStyle=fb2>0?'#FCD34D':'#1E3A5F';
-            const fbStr2=fb2>0?fb2.toString():'---';
-            ctx.fillText(fbStr2,rx2,H+38);
-            if (fb2>0){const bw2=ctx.measureText(fbStr2).width;drawCoin(rx2+bw2/2+7,H+29,4);}
-            ctx.textAlign='center';
-
-            let ny=H+62;
+            let ny=drawScoreBoxes(W,H+4,currentLevel)+14;
             if (newBest){ctx.font='bold 16px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('★  NEW BEST!  ★',W,ny);ny+=24;}
-            ctx.font='16px Courier New';ctx.fillStyle='#64748B';
+            ctx.font='16px Courier New';ctx.fillStyle='#94A3B8';
             ctx.fillText('[ SPACE ] - Return to Level Select',W,ny+8);
         } else {
             ctx.font='bold 54px Courier New';ctx.fillStyle='#F87171';
             ctx.fillText('GAME OVER',W,H-20);
-            ctx.font='18px Courier New';ctx.fillStyle='#64748B';
+            ctx.font='18px Courier New';ctx.fillStyle='#94A3B8';
             ctx.fillText('[ SPACE ] - Return to Level Select',W,H+28);
         }
         ctx.textAlign='left';
@@ -816,7 +918,7 @@ function draw() {
     drawFade();
 }
 
-function loop() { update(); updateFade(); draw(); requestAnimationFrame(loop); }
+function loop() { update(); updateFade(); updateCardOverlay(); draw(); requestAnimationFrame(loop); }
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 canvas.addEventListener('click', e => {
@@ -828,21 +930,16 @@ canvas.addEventListener('click', e => {
     if (screen==='splash') {
         const {x:bx,y:by,w:bw,h:bh}=SPLASH_BTN;
         if (mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh)
-            fadeToScreen(() => { screen='select'; updateHUD(); });
+            fadeToScreen(() => { screen='select'; refreshCardOverlay(); updateHUD(); });
         return;
     }
-    if (screen==='select') {
-        for (let i=0;i<3;i++) {
-            const {x:cx,y:cy,w:cw,h:ch}=cardBounds(i);
-            if (mx>=cx&&mx<=cx+cw&&my>=cy&&my<=cy+ch&&unlockedLevels[i]) { fadeToScreen(() => selectLevel(i)); return; }
-        }
-        return;
-    }
+    if (screen !== 'playing') return;
     if (gameOver||levelComplete) { fadeToScreen(returnToSelect); return; }
     const col=Math.floor(mx/SZ), row=Math.floor(my/SZ);
-    if (row<0||row>=ROWS||col<0||col>=COLS||grid[row][col]!=='empty'||gold<50) return;
-    gold-=50; grid[row][col]='tower';
-    towers.push({row,col,cx:col*SZ+SZ/2,cy:row*SZ+SZ/2,cooldown:0,target:null});
+    const tt=TOWER_TYPES.basic;
+    if (row<0||row>=ROWS||col<0||col>=COLS||grid[row][col]!=='empty'||gold<tt.cost) return;
+    gold-=tt.cost; grid[row][col]='tower';
+    towers.push({row,col,cx:col*SZ+SZ/2,cy:row*SZ+SZ/2,cooldown:0,target:null,range:tt.range,rate:tt.rate,drawFn:tt.drawFn});
     updateHUD();
 });
 
@@ -857,21 +954,12 @@ canvas.addEventListener('mousemove', e => {
         canvas.style.cursor = splashBtnHover ? 'pointer' : 'default';
         return;
     }
-    if (screen==='select') {
-        hoverCard=-1; hoverRow=hoverCol=-1;
-        for (let i=0;i<3;i++) {
-            const {x:cx,y:cy,w:cw,h:ch}=cardBounds(i);
-            if (mx>=cx&&mx<=cx+cw&&my>=cy&&my<=cy+ch) { hoverCard=i; break; }
-        }
-        canvas.style.cursor=(hoverCard>=0&&unlockedLevels[hoverCard])?'pointer':'default';
-        return;
-    }
-    hoverCard=-1;
+    if (screen !== 'playing') return;
     hoverCol=Math.floor(mx/SZ); hoverRow=Math.floor(my/SZ);
     if (hoverRow<0||hoverRow>=ROWS||hoverCol<0||hoverCol>=COLS) hoverRow=hoverCol=-1;
 });
 
-canvas.addEventListener('mouseleave', () => { hoverRow=hoverCol=-1; hoverCard=-1; splashBtnHover=false; });
+canvas.addEventListener('mouseleave', () => { hoverRow=hoverCol=-1; splashBtnHover=false; });
 
 document.addEventListener('keydown', e => {
     if (e.code!=='Space') return;
@@ -881,6 +969,15 @@ document.addEventListener('keydown', e => {
     }
 });
 
+document.getElementById('page-prev').addEventListener('click', () => {
+    if (selectPage > 0) { selectPage--; refreshCardOverlay(); }
+});
+document.getElementById('page-next').addEventListener('click', () => {
+    const lastPage = Math.ceil(LEVELS.length / 3) - 1;
+    if (selectPage < lastPage) { selectPage++; refreshCardOverlay(); }
+});
+
+refreshCardOverlay();
 updateHUD();
 loop();
 </script>
