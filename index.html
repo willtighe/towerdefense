@@ -127,6 +127,23 @@ canvas {
 #page-prev { left: 1px; }
 #page-next { right: 1px; }
 .page-btn:hover { background: #112040; border-color: #3B82F6; }
+#gameplay-btns {
+    display: none;
+    width: 800px;
+    background: #0F172A;
+    border-left: 3px solid #1E3A5F;
+    border-right: 3px solid #1E3A5F;
+    border-bottom: 1px solid #1E3A5F;
+    padding: 4px 10px;
+    gap: 8px;
+    align-items: center;
+}
+.gp-btn {
+    background: #0F172A; border: 1px solid #1E3A5F;
+    color: #94A3B8; font: 11px 'Courier New';
+    padding: 3px 10px; cursor: pointer; letter-spacing: 0.5px;
+}
+.gp-btn:hover { background: #0D2035; border-color: #2D5A8E; color: #CBD5E1; }
 </style>
 </head>
 <body>
@@ -145,6 +162,10 @@ canvas {
         <span class="coin"></span><b id="bsv" style="color:#FCD34D">-</b>
     </div>
     <span id="msg">Select a level to begin</span>
+</div>
+<div id="gameplay-btns">
+    <button id="btn-restart" class="gp-btn">RESTART</button>
+    <button id="btn-levelselect" class="gp-btn">LEVEL SELECT</button>
 </div>
 <div id="canvas-wrap">
 <canvas id="cv" width="800" height="600"></canvas>
@@ -347,6 +368,7 @@ function loadLevel(idx) {
 // ── HUD ───────────────────────────────────────────────────────────────────────
 function updateHUD() {
     document.getElementById('hud').style.display = screen === 'playing' ? 'flex' : 'none';
+    document.getElementById('gameplay-btns').style.display = screen === 'playing' ? 'flex' : 'none';
     document.getElementById('gv').textContent  = screen === 'playing' ? gold  : '-';
     document.getElementById('lv').textContent  = screen === 'playing' ? lives : '-';
     document.getElementById('lev').textContent = screen === 'playing' ? (currentLevel+1)+'/'+LEVELS.length : '-';
@@ -965,6 +987,15 @@ document.addEventListener('keydown', e => {
     if (screen==='playing' && fadePending === null) {
         if (levelComplete||gameOver) fadeToScreen(returnToSelect); else startWave();
     }
+});
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+    if (fadePending !== null) return;
+    fadeToScreen(() => selectLevel(currentLevel));
+});
+document.getElementById('btn-levelselect').addEventListener('click', () => {
+    if (fadePending !== null) return;
+    fadeToScreen(returnToSelect);
 });
 
 document.getElementById('page-prev').addEventListener('click', () => {
