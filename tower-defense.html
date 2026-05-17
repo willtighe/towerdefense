@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>8-BIT TOWER DEFENSE</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,7 +12,9 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
     font-family: 'Courier New', monospace;
     user-select: none;
 }
@@ -54,7 +57,7 @@ canvas {
     image-rendering: pixelated;
     border: 3px solid #1E3A5F;
 }
-#game-wrap { display: flex; flex-direction: column; }
+#game-wrap { display: flex; flex-direction: column; transform-origin: center center; }
 #canvas-wrap { position: relative; line-height: 0; }
 #card-overlay {
     position: absolute; top: 3px; left: 3px;
@@ -118,15 +121,17 @@ canvas {
 }
 .page-btn {
     position: absolute;
-    width: 18px; height: 44px; top: 336px;
-    background: #0F172A; border: 2px solid #1E3A5F;
-    color: #93C5FD; font: bold 14px 'Courier New';
-    cursor: pointer; pointer-events: all; padding: 0;
-    display: none;
+    width: 100px; height: 28px; top: 566px;
+    background: #1E3A5F; border: 2px solid #3B82F6;
+    color: #93C5FD; font: bold 11px 'Courier New';
+    cursor: pointer; pointer-events: all;
+    padding: 0 8px; letter-spacing: 0.5px;
+    display: block;
 }
-#page-prev { left: 1px; }
-#page-next { right: 1px; }
-.page-btn:hover { background: #112040; border-color: #3B82F6; }
+#page-prev { left: 290px; }
+#page-next { left: 410px; }
+.page-btn:not(.disabled):hover { background: #1D4ED8; border-color: #60A5FA; color: #F1F5F9; }
+.page-btn.disabled { opacity: 0.3; border-color: #1E293B; cursor: default; pointer-events: none; }
 #gameplay-btns {
     display: none;
     width: 800px;
@@ -144,6 +149,52 @@ canvas {
     padding: 3px 10px; cursor: pointer; letter-spacing: 0.5px;
 }
 .gp-btn:hover { background: #0D2035; border-color: #2D5A8E; color: #CBD5E1; }
+#splash-overlay {
+    position: absolute; top: 3px; left: 3px;
+    width: 800px; height: 600px;
+    pointer-events: none; display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+#splash-title {
+    position: relative;
+    font: bold 50px 'Courier New', monospace;
+    color: #FCD34D;
+    letter-spacing: 1px;
+    padding-bottom: 14px;
+    margin-bottom: 28px;
+}
+#splash-title::before {
+    content: ''; position: absolute;
+    bottom: 5px; left: 0; right: 0;
+    height: 3px; background: #92400E;
+}
+#splash-title::after {
+    content: ''; position: absolute;
+    bottom: 1px; left: 6px; right: 6px;
+    height: 2px; background: #78350F;
+}
+#splash-tagline {
+    font: 24px 'Courier New', monospace;
+    color: #F1F5F9;
+    text-align: center;
+    line-height: 28px;
+    margin-bottom: 26px;
+}
+#splash-btn {
+    width: 260px; height: 44px;
+    background: #1D4ED8; color: #F1F5F9;
+    font: bold 13px 'Courier New', monospace;
+    border: 2px solid #3B82F6;
+    cursor: pointer; pointer-events: all;
+    letter-spacing: 0.5px;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.12);
+}
+#splash-btn:hover {
+    background: #60A5FA; border-color: #93C5FD;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.3);
+}
 </style>
 </head>
 <body>
@@ -155,7 +206,7 @@ canvas {
     <span style="color:#1E293B">·</span> WAVE: <b id="wv" style="color:#6EE7B7">-</b>
     <span style="color:#1E293B">·</span> TOWER: <span class="coin"></span><b style="color:#FCD34D">50g</b>
     <div id="hud-scores">
-        <span class="hs-label" style="color:#FBBF24">TARGET</span>
+        <span class="hs-label" style="color:#FBBF24">WILLIE'S TOP SCORE</span>
         <span class="coin"></span><b id="tgv" style="color:#FCD34D">-</b>
         <span style="color:#1E293B">·</span>
         <span class="hs-label" style="color:#6EE7B7">YOUR BEST</span>
@@ -171,8 +222,16 @@ canvas {
 <canvas id="cv" width="800" height="600"></canvas>
 <div id="card-overlay">
     <div id="cards-container"></div>
-    <button id="page-prev" class="page-btn">&lt;</button>
-    <button id="page-next" class="page-btn">&gt;</button>
+    <button id="page-prev" class="page-btn">&lt; BACK</button>
+    <button id="page-next" class="page-btn">NEXT &gt;</button>
+</div>
+<div id="splash-overlay">
+    <div id="splash-title">TOWER DEFENSE</div>
+    <div id="splash-tagline">
+        <p>Finish levels with as much gold as possible.</p>
+        <p>Can you beat Willies top scores?</p>
+    </div>
+    <button id="splash-btn">GOT IT LET'S PLAY</button>
 </div>
 </div>
 </div>
@@ -345,8 +404,7 @@ const grid = Array.from({ length:ROWS }, () => Array(COLS).fill('empty'));
 // ── Fade & splash state ───────────────────────────────────────────────────────
 let fadeAlpha = 1;       // starts opaque so opening splash fades in
 let fadePending = null;  // callback fired when fade reaches full black
-let splashBtnHover = false;
-const SPLASH_BTN = { x:270, y:366, w:260, h:44 };
+
 
 // ── Level load ────────────────────────────────────────────────────────────────
 function loadLevel(idx) {
@@ -398,7 +456,7 @@ function selectLevel(i) {
     waveActive = false; levelComplete = false; gameOver = false; won = false; newBest = false;
     screen = 'playing';
     canvas.style.cursor = 'crosshair';
-    loadLevel(i); updateHUD();
+    loadLevel(i); updateHUD(); scaleGame();
 }
 
 function returnToSelect() {
@@ -407,7 +465,7 @@ function returnToSelect() {
     enemies = []; bullets = []; sparks = [];
     canvas.style.cursor = 'default';
     refreshCardOverlay();
-    updateHUD();
+    updateHUD(); scaleGame();
 }
 
 function startWave() {
@@ -570,7 +628,7 @@ function drawScoreBoxes(centerX, topY, levelIndex) {
     const lx=centerX-90, rx=centerX+90, bxW=140, bxH=60, bxY=topY;
     dr(lx-bxW/2,bxY,bxW,bxH,'#0D1B2A');
     ctx.strokeStyle='#1E3A5F';ctx.lineWidth=1;ctx.strokeRect(lx-bxW/2,bxY,bxW,bxH);
-    ctx.font='bold 11px Courier New';ctx.fillStyle='#FBBF24';ctx.fillText('TARGET',lx,bxY+16);
+    ctx.font='bold 11px Courier New';ctx.fillStyle='#FBBF24';ctx.fillText("WILLIE'S TOP SCORE",lx,bxY+16);
     ctx.font='bold 22px Courier New';ctx.fillStyle='#FCD34D';
     const tgStr=LEVELS[levelIndex].target.toString();
     ctx.fillText(tgStr,lx,bxY+38);
@@ -613,8 +671,6 @@ function drawFade() {
 
 // ── Splash screen ─────────────────────────────────────────────────────────────
 function drawSplashScreen() {
-    const W = canvas.width / 2;
-
     ctx.fillStyle = '#0F172A'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.fillStyle = '#0D1B2A';
@@ -624,30 +680,6 @@ function drawSplashScreen() {
         dr(x,0,6,3,'#1E293B'); dr(x+6,3,6,3,'#1E293B');
         dr(x,canvas.height-3,6,3,'#1E293B'); dr(x+6,canvas.height-6,6,3,'#1E293B');
     }
-
-    ctx.textAlign = 'center';
-
-    ctx.font = 'bold 50px Courier New'; ctx.fillStyle = '#FCD34D';
-    ctx.fillText('TOWER DEFENSE', W, 226);
-    const uw = ctx.measureText('TOWER DEFENSE').width;
-    dr(W-uw/2,     234, uw,    3, '#92400E');
-    dr(W-uw/2+6,   238, uw-12, 2, '#78350F');
-
-    ctx.font = '18px Courier New'; ctx.fillStyle = '#F1F5F9';
-    ctx.fillText('Finish each level with as much gold as possible.', W, 304);
-    ctx.fillText('Can you beat the target score for each level?', W, 332);
-
-    const { x:bx, y:by, w:bw, h:bh } = SPLASH_BTN;
-    const hov = splashBtnHover;
-    dr(bx, by, bw, bh, hov ? '#60A5FA' : '#1D4ED8');
-    dr(bx+1, by+1, bw-2, 4, hov ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.12)');
-    ctx.strokeStyle = hov ? '#93C5FD' : '#1D4ED8'; ctx.lineWidth = 2;
-    ctx.strokeRect(bx, by, bw, bh);
-    ctx.font = 'bold 13px Courier New';
-    ctx.fillStyle = '#F1F5F9';
-    ctx.fillText("CONTINUE", W, by + 28);
-
-    ctx.textAlign = 'left';
 }
 
 // ── HTML card overlay ─────────────────────────────────────────────────────────
@@ -708,7 +740,7 @@ function createLevelCard(i) {
     const targetCol = document.createElement('div');
     targetCol.className = 'card-col card-col-target';
     targetCol.innerHTML =
-        `<div class="col-label" style="color:${locked?'#1E293B':'#FBBF24'}">TARGET</div>` +
+        `<div class="col-label" style="color:${locked?'#1E293B':'#FBBF24'}">WILLIE'S TOP SCORE</div>` +
         `<div class="col-val">${locked?'':'<span class="coin"></span>'}` +
         `<span class="col-num${locked?' dim':''}">${locked?'---':lvl.target}</span></div>` +
         `<div class="col-sub" style="color:${locked?'#1E293B':'#94A3B8'}">${locked?'':'gold max'}</div>`;
@@ -756,18 +788,28 @@ function refreshCardOverlay() {
     const lastPage = Math.ceil(LEVELS.length / 3) - 1;
     const prevBtn = document.getElementById('page-prev');
     const nextBtn = document.getElementById('page-next');
-    if (prevBtn) prevBtn.style.display = selectPage === 0 ? 'none' : 'block';
-    if (nextBtn) nextBtn.style.display = selectPage >= lastPage ? 'none' : 'block';
+    if (prevBtn) prevBtn.classList.toggle('disabled', selectPage === 0);
+    if (nextBtn) nextBtn.classList.toggle('disabled', selectPage >= lastPage);
 }
 
 function updateCardOverlay() {
     const overlay = document.getElementById('card-overlay');
-    if (!overlay) return;
-    if (screen === 'select') {
-        overlay.style.display = 'block';
-        overlay.style.opacity = Math.max(0, 1 - fadeAlpha);
-    } else {
-        overlay.style.display = 'none';
+    if (overlay) {
+        if (screen === 'select') {
+            overlay.style.display = 'block';
+            overlay.style.opacity = Math.max(0, 1 - fadeAlpha);
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
+    const splashOv = document.getElementById('splash-overlay');
+    if (splashOv) {
+        if (screen === 'splash') {
+            splashOv.style.display = 'flex';
+            splashOv.style.opacity = Math.max(0, 1 - fadeAlpha);
+        } else {
+            splashOv.style.display = 'none';
+        }
     }
 }
 
@@ -947,12 +989,7 @@ canvas.addEventListener('click', e => {
     const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
     const my=(e.clientY-rect.top)*(canvas.height/rect.height);
 
-    if (screen==='splash') {
-        const {x:bx,y:by,w:bw,h:bh}=SPLASH_BTN;
-        if (mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh)
-            fadeToScreen(() => { screen='select'; refreshCardOverlay(); updateHUD(); });
-        return;
-    }
+    if (screen==='splash') return;
     if (screen !== 'playing') return;
     if (gameOver||levelComplete) { fadeToScreen(returnToSelect); return; }
     const col=Math.floor(mx/SZ), row=Math.floor(my/SZ);
@@ -968,18 +1005,12 @@ canvas.addEventListener('mousemove', e => {
     const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
     const my=(e.clientY-rect.top)*(canvas.height/rect.height);
 
-    if (screen==='splash') {
-        const {x:bx,y:by,w:bw,h:bh}=SPLASH_BTN;
-        splashBtnHover = mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh;
-        canvas.style.cursor = splashBtnHover ? 'pointer' : 'default';
-        return;
-    }
     if (screen !== 'playing') return;
     hoverCol=Math.floor(mx/SZ); hoverRow=Math.floor(my/SZ);
     if (hoverRow<0||hoverRow>=ROWS||hoverCol<0||hoverCol>=COLS) hoverRow=hoverCol=-1;
 });
 
-canvas.addEventListener('mouseleave', () => { hoverRow=hoverCol=-1; splashBtnHover=false; });
+canvas.addEventListener('mouseleave', () => { hoverRow=hoverCol=-1; });
 
 document.addEventListener('keydown', e => {
     if (e.code!=='Space') return;
@@ -998,6 +1029,11 @@ document.getElementById('btn-levelselect').addEventListener('click', () => {
     fadeToScreen(returnToSelect);
 });
 
+document.getElementById('splash-btn').addEventListener('click', () => {
+    if (fadePending !== null) return;
+    fadeToScreen(() => { screen='select'; refreshCardOverlay(); updateHUD(); scaleGame(); });
+});
+
 document.getElementById('page-prev').addEventListener('click', () => {
     if (selectPage > 0) { selectPage--; refreshCardOverlay(); }
 });
@@ -1006,8 +1042,16 @@ document.getElementById('page-next').addEventListener('click', () => {
     if (selectPage < lastPage) { selectPage++; refreshCardOverlay(); }
 });
 
+function scaleGame() {
+    const wrap = document.getElementById('game-wrap');
+    const scale = Math.min(window.innerWidth / wrap.offsetWidth, window.innerHeight / wrap.offsetHeight);
+    wrap.style.transform = 'scale(' + scale + ')';
+}
+window.addEventListener('resize', scaleGame);
+
 refreshCardOverlay();
 updateHUD();
+scaleGame();
 loop();
 </script>
 </body>
