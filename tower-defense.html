@@ -182,6 +182,50 @@ canvas {
     text-align: center;
     line-height: 22px;
 }
+#endgame-overlay {
+    position: absolute; top: 3px; left: 3px;
+    width: 800px; height: 600px;
+    background: rgba(0,0,0,0.88);
+    pointer-events: none; display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+#endgame-inner { display: flex; flex-direction: column; align-items: center; }
+.eg-title {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+.eg-score-label {
+    font: 11px 'Courier New', monospace;
+    color: #94A3B8; letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+.eg-score-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 14px;
+}
+.eg-score-num { font: bold 52px 'Courier New', monospace; color: #FCD34D; }
+.eg-divider { width: 330px; height: 1px; background: #1E3A5F; margin-bottom: 8px; }
+.eg-boxes { display: flex; gap: 40px; margin-bottom: 14px; }
+.eg-box {
+    width: 140px; height: 60px;
+    background: #0D1B2A; border: 1px solid #1E3A5F;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2px;
+}
+.eg-box-best { border-color: #134E2A; }
+.eg-box-label { font: bold 11px 'Courier New', monospace; letter-spacing: 0.5px; }
+.eg-box-value {
+    display: flex; align-items: center; gap: 5px;
+    font: bold 22px 'Courier New', monospace; color: #FCD34D;
+}
+.eg-box-sub { font: 9px 'Courier New', monospace; color: #94A3B8; }
+.eg-newbest { font: bold 16px 'Courier New', monospace; color: #6EE7B7; margin-bottom: 2px; }
+.eg-nextlevel { font: 13px 'Courier New', monospace; color: #6EE7B7; margin-bottom: 2px; }
+.eg-prompt { font: 16px 'Courier New', monospace; color: #94A3B8; margin-top: 8px; }
 #splash-overlay {
     position: absolute; top: 3px; left: 3px;
     width: 800px; height: 600px;
@@ -265,6 +309,7 @@ canvas {
     <button id="page-prev" class="page-btn">&lt; BACK</button>
     <button id="page-next" class="page-btn">NEXT &gt;</button>
 </div>
+<div id="endgame-overlay"><div id="endgame-inner"></div></div>
 <div id="splash-overlay">
     <div id="splash-title">TOWER DEFENSE</div>
     <div id="splash-tagline">
@@ -412,6 +457,40 @@ const LEVELS = [
             { x:800+30,   y:12*40+20 },
         ],
         startCell:{ r:1, c:0 }, endCell:{ r:12, c:19 },
+    },
+    // Level 6 — GAUNTLET
+    // Segments: [0] row 1 col 0→18 | [1] col 18 row 1→8 | [2] row 8 col 18→2
+    //           [3] col 2 row 8→3  | [4] row 3 col 2→16  | [5] col 16 row 3→13
+    //           [6] row 13 col 16→19
+    // Junctions: (1,18)✓ (8,18)✓ (8,2)✓ (3,2)✓ (3,16)✓ (13,16)✓
+    // Waypoints: entry(-20,60) (740,60) (740,340) (100,340) (100,140) (660,140) (660,540) exit(830,540)✓
+    {
+        label: 'GAUNTLET', color: '#F59E0B', target: 338,
+        waves: [
+            'bbbbbbbbbb'.split(''),
+            'bsbsbbtbbtbtbt'.split(''),
+            'bststbsttbststbsttbs'.split(''),
+        ],
+        segments: [
+            { r1:1,  c1:0,  r2:1,  c2:18, horiz:true  },
+            { r1:1,  c1:18, r2:8,  c2:18, horiz:false },
+            { r1:8,  c1:18, r2:8,  c2:2,  horiz:true  },
+            { r1:8,  c1:2,  r2:3,  c2:2,  horiz:false },
+            { r1:3,  c1:2,  r2:3,  c2:16, horiz:true  },
+            { r1:3,  c1:16, r2:13, c2:16, horiz:false },
+            { r1:13, c1:16, r2:13, c2:19, horiz:true  },
+        ],
+        waypoints: [
+            { x:-20,      y:1*40+20  },
+            { x:18*40+20, y:1*40+20  },
+            { x:18*40+20, y:8*40+20  },
+            { x:2*40+20,  y:8*40+20  },
+            { x:2*40+20,  y:3*40+20  },
+            { x:16*40+20, y:3*40+20  },
+            { x:16*40+20, y:13*40+20 },
+            { x:800+30,   y:13*40+20 },
+        ],
+        startCell:{ r:1, c:0 }, endCell:{ r:13, c:19 },
     },
 ];
 
@@ -832,6 +911,52 @@ function refreshCardOverlay() {
     if (nextBtn) nextBtn.classList.toggle('disabled', selectPage >= lastPage);
 }
 
+function scoreBoxesHTML(target, best) {
+    const has = best > 0;
+    return `<div class="eg-boxes">
+        <div class="eg-box">
+            <div class="eg-box-label" style="color:#FBBF24">WILLIE'S TOP SCORE</div>
+            <div class="eg-box-value"><span class="coin"></span><span>${target}</span></div>
+            <div class="eg-box-sub">gold max</div>
+        </div>
+        <div class="eg-box${has?' eg-box-best':''}">
+            <div class="eg-box-label" style="color:#6EE7B7">YOUR BEST</div>
+            <div class="eg-box-value">${has?'<span class="coin"></span>':''}<span>${has?best:'---'}</span></div>
+            <div class="eg-box-sub">${has?'personal best':'no run yet'}</div>
+        </div>
+    </div>`;
+}
+
+function populateEndgameOverlay() {
+    const inner = document.getElementById('endgame-inner');
+    if (!inner) return;
+    const hs = getHighScore(currentLevel);
+    const tgt = LEVELS[currentLevel].target;
+    let h = '';
+    if (levelComplete) {
+        h += `<div class="eg-title" style="color:#FCD34D;font-size:46px">LEVEL ${currentLevel+1} COMPLETE!</div>`;
+        h += `<div class="eg-score-label">YOUR SCORE</div>`;
+        h += `<div class="eg-score-row"><span class="coin"></span><span class="eg-score-num">${gold}</span></div>`;
+        h += `<div class="eg-divider"></div>`;
+        h += scoreBoxesHTML(tgt, hs);
+        if (newBest) h += `<div class="eg-newbest">&#9733;&nbsp; NEW BEST! &nbsp;&#9733;</div>`;
+        if (currentLevel+1 < LEVELS.length) h += `<div class="eg-nextlevel">Level ${currentLevel+2} is now unlocked</div>`;
+        h += `<div class="eg-prompt">[ SPACE ] - Return to Level Select</div>`;
+    } else if (won) {
+        h += `<div class="eg-title" style="color:#6EE7B7;font-size:54px">YOU WIN!</div>`;
+        h += `<div class="eg-score-label">YOUR SCORE</div>`;
+        h += `<div class="eg-score-row"><span class="coin"></span><span class="eg-score-num">${gold}</span></div>`;
+        h += `<div class="eg-divider"></div>`;
+        h += scoreBoxesHTML(tgt, hs);
+        if (newBest) h += `<div class="eg-newbest">&#9733;&nbsp; NEW BEST! &nbsp;&#9733;</div>`;
+        h += `<div class="eg-prompt">[ SPACE ] - Return to Level Select</div>`;
+    } else {
+        h += `<div class="eg-title" style="color:#F87171;font-size:54px">GAME OVER</div>`;
+        h += `<div class="eg-prompt" style="font-size:18px">[ SPACE ] - Return to Level Select</div>`;
+    }
+    inner.innerHTML = h;
+}
+
 function updateCardOverlay() {
     const overlay = document.getElementById('card-overlay');
     if (overlay) {
@@ -850,6 +975,13 @@ function updateCardOverlay() {
         } else {
             splashOv.style.display = 'none';
         }
+    }
+    const endOv = document.getElementById('endgame-overlay');
+    if (endOv) {
+        const active = screen === 'playing' && (levelComplete || gameOver);
+        if (active && endOv.style.display !== 'flex') populateEndgameOverlay();
+        endOv.style.display = active ? 'flex' : 'none';
+        if (active) endOv.style.opacity = Math.max(0, 1 - fadeAlpha);
     }
 }
 
@@ -935,66 +1067,6 @@ function drawGame() {
         ctx.fillText('[ SPACE ] - Launch Wave '+(wave+1),canvas.width/2,canvas.height-24);ctx.textAlign='left';
     }
 
-    if (levelComplete) {
-        ctx.fillStyle='rgba(0,0,0,0.88)';ctx.fillRect(0,0,canvas.width,canvas.height);
-        const W=canvas.width/2, H=canvas.height/2;
-        ctx.textAlign='center';
-
-        ctx.font='bold 46px Courier New';ctx.fillStyle='#FCD34D';
-        ctx.fillText('LEVEL '+(currentLevel+1)+' COMPLETE!',W,H-104);
-
-        ctx.font='11px Courier New';ctx.fillStyle='#94A3B8';
-        ctx.fillText('YOUR SCORE',W,H-64);
-
-        ctx.font='bold 52px Courier New';ctx.fillStyle='#FCD34D';
-        const goldStr=gold.toString();
-        ctx.fillText(goldStr,W,H-22);
-        const gsw=ctx.measureText(goldStr).width;
-        drawCoin(W+gsw/2+10, H-42, 6);
-
-        ctx.strokeStyle='#1E3A5F';ctx.lineWidth=1;
-        ctx.beginPath();ctx.moveTo(W-165,H-4);ctx.lineTo(W+165,H-4);ctx.stroke();
-
-        let ny=drawScoreBoxes(W,H+4,currentLevel)+14;
-        if (newBest){ctx.font='bold 16px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('★  NEW BEST!  ★',W,ny);ny+=24;}
-        if (currentLevel+1<LEVELS.length){ctx.font='13px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('Level '+(currentLevel+2)+' is now unlocked',W,ny);ny+=22;}
-        ctx.font='16px Courier New';ctx.fillStyle='#94A3B8';
-        ctx.fillText('[ SPACE ] - Return to Level Select',W,ny+8);
-        ctx.textAlign='left';
-    }
-
-    if (gameOver) {
-        ctx.fillStyle='rgba(0,0,0,0.88)';ctx.fillRect(0,0,canvas.width,canvas.height);
-        const W=canvas.width/2, H=canvas.height/2;
-        ctx.textAlign='center';
-        if (won) {
-            ctx.font='bold 54px Courier New';ctx.fillStyle='#6EE7B7';
-            ctx.fillText('YOU WIN!',W,H-104);
-
-            ctx.font='11px Courier New';ctx.fillStyle='#94A3B8';
-            ctx.fillText('YOUR SCORE',W,H-64);
-
-            ctx.font='bold 52px Courier New';ctx.fillStyle='#FCD34D';
-            const goldStr2=gold.toString();
-            ctx.fillText(goldStr2,W,H-22);
-            const gsw2=ctx.measureText(goldStr2).width;
-            drawCoin(W+gsw2/2+10, H-42, 6);
-
-            ctx.strokeStyle='#1E3A5F';ctx.lineWidth=1;
-            ctx.beginPath();ctx.moveTo(W-165,H-4);ctx.lineTo(W+165,H-4);ctx.stroke();
-
-            let ny=drawScoreBoxes(W,H+4,currentLevel)+14;
-            if (newBest){ctx.font='bold 16px Courier New';ctx.fillStyle='#6EE7B7';ctx.fillText('★  NEW BEST!  ★',W,ny);ny+=24;}
-            ctx.font='16px Courier New';ctx.fillStyle='#94A3B8';
-            ctx.fillText('[ SPACE ] - Return to Level Select',W,ny+8);
-        } else {
-            ctx.font='bold 54px Courier New';ctx.fillStyle='#F87171';
-            ctx.fillText('GAME OVER',W,H-20);
-            ctx.font='18px Courier New';ctx.fillStyle='#94A3B8';
-            ctx.fillText('[ SPACE ] - Return to Level Select',W,H+28);
-        }
-        ctx.textAlign='left';
-    }
 }
 
 function draw() {
