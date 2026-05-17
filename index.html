@@ -149,6 +149,39 @@ canvas {
     padding: 3px 10px; cursor: pointer; letter-spacing: 0.5px;
 }
 .gp-btn:hover { background: #0D2035; border-color: #2D5A8E; color: #CBD5E1; }
+#select-header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 153px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+#select-title {
+    position: relative;
+    font: bold 42px 'Courier New', monospace;
+    color: #FCD34D;
+    letter-spacing: 1px;
+    padding-bottom: 14px;
+}
+#select-title::before {
+    content: ''; position: absolute;
+    bottom: 5px; left: 0; right: 0;
+    height: 3px; background: #92400E;
+}
+#select-title::after {
+    content: ''; position: absolute;
+    bottom: 1px; left: 6px; right: 6px;
+    height: 2px; background: #78350F;
+}
+#select-tagline {
+    font: 18px 'Courier New', monospace;
+    color: #F1F5F9;
+    text-align: center;
+    line-height: 22px;
+}
 #splash-overlay {
     position: absolute; top: 3px; left: 3px;
     width: 800px; height: 600px;
@@ -221,6 +254,13 @@ canvas {
 <div id="canvas-wrap">
 <canvas id="cv" width="800" height="600"></canvas>
 <div id="card-overlay">
+    <div id="select-header">
+        <div id="select-title">TOWER DEFENSE</div>
+        <div id="select-tagline">
+            <p>Finish each level with as much gold as possible.</p>
+            <p>Can you beat the target score?</p>
+        </div>
+    </div>
     <div id="cards-container"></div>
     <button id="page-prev" class="page-btn">&lt; BACK</button>
     <button id="page-next" class="page-btn">NEXT &gt;</button>
@@ -825,22 +865,6 @@ function drawSelectScreen() {
         dr(x,canvas.height-3,6,3,'#1E293B'); dr(x+6,canvas.height-6,6,3,'#1E293B');
     }
 
-    ctx.textAlign='center';
-    ctx.font='bold 42px Courier New';
-    ctx.fillStyle='#FCD34D';
-    ctx.fillText('TOWER DEFENSE', canvas.width/2, 70);
-
-    const uw = ctx.measureText('TOWER DEFENSE').width;
-    dr(canvas.width/2-uw/2,   76, uw,   3, '#92400E');
-    dr(canvas.width/2-uw/2+6, 80, uw-12,2, '#78350F');
-
-    ctx.font='18px Courier New'; ctx.fillStyle='#F1F5F9';
-    ctx.fillText('Finish each level with as much gold as possible.', canvas.width/2, 119);
-    ctx.fillText('Can you beat the target score?', canvas.width/2, 141);
-
-    ctx.font='11px Courier New'; ctx.fillStyle='#94A3B8';
-    
-    ctx.textAlign='left';
 }
 
 // ── Game screen ───────────────────────────────────────────────────────────────
